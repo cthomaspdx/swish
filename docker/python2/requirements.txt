@@ -1,0 +1,4 @@
+requests
+flask
+numpy
+pyspark==2.4.8

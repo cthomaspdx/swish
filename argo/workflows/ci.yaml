@@ -1,0 +1,146 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: swish-ci
+  namespace: argo
+spec:
+  entrypoint: ci-pipeline
+  volumes:
+    - name: docker-config
+      secret:
+        secretName: dockerhub-credentials
+        items:
+          - key: .dockerconfigjson
+            path: config.json
+    - name: workspace
+      emptyDir: {}
+
+  templates:
+    # --- Main DAG ---
+    - name: ci-pipeline
+      dag:
+        tasks:
+          - name: checkout
+            template: git-checkout
+
+          # Build (parallel)
+          - name: build-python3
+            template: build-and-push
+            dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: image-name
+                  value: swish-python3
+                - name: context
+                  value: docker/python3
+
+          - name: build-python2
+            template: build-and-push
+            dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: image-name
+                  value: swish-python2
+                - name: context
+                  value: docker/python2
+
+          - name: build-r
+            template: build-and-push
+            dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: image-name
+                  value: swish-r
+                - name: context
+                  value: docker/r
+
+          # Scan (parallel, after builds)
+          - name: scan-python3
+            template: trivy-scan
+            dependencies: [build-python3]
+            arguments:
+              parameters:
+                - name: image
+                  value: cthomaspdx1/swish-python3:latest
+
+          - name: scan-python2
+            template: trivy-scan
+            dependencies: [build-python2]
+            arguments:
+              parameters:
+                - name: image
+                  value: cthomaspdx1/swish-python2:latest
+
+          - name: scan-r
+            template: trivy-scan
+            dependencies: [build-r]
+            arguments:
+              parameters:
+                - name: image
+                  value: cthomaspdx1/swish-r:latest
+
+          # Deploy (after all scans pass)
+          - name: deploy
+            template: kubectl-deploy
+            dependencies: [scan-python3, scan-python2, scan-r]
+
+    # --- Git Checkout ---
+    - name: git-checkout
+      container:
+        image: alpine/git:latest
+        command: [sh, -c]
+        args:
+          - git clone https://github.com/cthomaspdx1/swish.git /workspace/src
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+
+    # --- Build & Push ---
+    - name: build-and-push
+      inputs:
+        parameters:
+          - name: image-name
+          - name: context
+      container:
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+          - --context=/workspace/src/{{inputs.parameters.context}}
+          - --destination=cthomaspdx1/{{inputs.parameters.image-name}}:latest
+          - --cache=true
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+          - name: docker-config
+            mountPath: /kaniko/.docker
+
+    # --- Trivy Scan ---
+    - name: trivy-scan
+      inputs:
+        parameters:
+          - name: image
+      container:
+        image: aquasec/trivy:latest
+        command: [trivy]
+        args:
+          - image
+          - --severity
+          - CRITICAL,HIGH
+          - --exit-code
+          - "0"
+          - --format
+          - table
+          - "{{inputs.parameters.image}}"
+
+    # --- Deploy to Kubernetes ---
+    - name: kubectl-deploy
+      serviceAccountName: argo-deployer
+      container:
+        image: bitnami/kubectl:latest
+        command: [sh, -c]
+        args:
+          - |
+            kubectl create namespace swish --dry-run=client -o yaml | kubectl apply -f - &&
+            kubectl apply -f /workspace/src/k8s/
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace

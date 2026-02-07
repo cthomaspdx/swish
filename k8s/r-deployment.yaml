@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swish-r
+  namespace: swish
+  labels:
+    app: swish-r
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: swish-r
+  template:
+    metadata:
+      labels:
+        app: swish-r
+    spec:
+      containers:
+        - name: r
+          image: cthomaspdx1/swish-r:latest
+          command: ["tail", "-f", "/dev/null"]
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

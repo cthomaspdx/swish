@@ -1,0 +1,9 @@
+*.md
+*.txt~
+.git
+.github
+docs
+k8s
+__pycache__
+*.pyc
+.env

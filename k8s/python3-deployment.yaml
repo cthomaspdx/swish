@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swish-python3
+  namespace: swish
+  labels:
+    app: swish-python3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: swish-python3
+  template:
+    metadata:
+      labels:
+        app: swish-python3
+    spec:
+      containers:
+        - name: python3
+          image: cthomaspdx1/swish-python3:latest
+          command: ["tail", "-f", "/dev/null"]
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
