@@ -5,6 +5,15 @@ metadata:
   namespace: argo
 spec:
   entrypoint: ci-pipeline
+  arguments:
+    parameters:
+      - name: target
+        value: all
+        enum:
+          - all
+          - python3
+          - python2
+          - r
   volumes:
     - name: docker-config
       secret:
@@ -27,10 +36,11 @@ spec:
           - name: checkout
             template: git-checkout
 
-          # Build (sequential)
+          # Python 3: build → scan → deploy
           - name: build-python3
             template: build-and-push
             dependencies: [checkout]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'python3'"
             arguments:
               parameters:
                 - name: image-name
@@ -38,9 +48,25 @@ spec:
                 - name: context
                   value: docker/python3
 
+          - name: scan-python3
+            template: trivy-scan
+            dependencies: [build-python3]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'python3'"
+            arguments:
+              parameters:
+                - name: image
+                  value: cthomaspdx1/swish-python3:latest
+
+          - name: deploy-python3
+            template: kubectl-deploy
+            dependencies: [scan-python3]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'python3'"
+
+          # Python 2: build → scan → deploy
           - name: build-python2
             template: build-and-push
-            dependencies: [build-python3]
+            dependencies: [checkout]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'python2'"
             arguments:
               parameters:
                 - name: image-name
@@ -48,9 +74,25 @@ spec:
                 - name: context
                   value: docker/python2
 
+          - name: scan-python2
+            template: trivy-scan
+            dependencies: [build-python2]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'python2'"
+            arguments:
+              parameters:
+                - name: image
+                  value: cthomaspdx1/swish-python2:latest
+
+          - name: deploy-python2
+            template: kubectl-deploy
+            dependencies: [scan-python2]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'python2'"
+
+          # R: build → scan → deploy
           - name: build-r
             template: build-and-push
-            dependencies: [build-python2]
+            dependencies: [checkout]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'r'"
             arguments:
               parameters:
                 - name: image-name
@@ -58,35 +100,19 @@ spec:
                 - name: context
                   value: docker/r
 
-          # Scan (sequential, after each build)
-          - name: scan-python3
-            template: trivy-scan
-            dependencies: [build-python3]
-            arguments:
-              parameters:
-                - name: image
-                  value: cthomaspdx1/swish-python3:latest
-
-          - name: scan-python2
-            template: trivy-scan
-            dependencies: [scan-python3]
-            arguments:
-              parameters:
-                - name: image
-                  value: cthomaspdx1/swish-python2:latest
-
           - name: scan-r
             template: trivy-scan
-            dependencies: [scan-python2]
+            dependencies: [build-r]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'r'"
             arguments:
               parameters:
                 - name: image
                   value: cthomaspdx1/swish-r:latest
 
-          # Deploy (after all scans pass)
-          - name: deploy
+          - name: deploy-r
             template: kubectl-deploy
             dependencies: [scan-r]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'r'"
 
     # --- Git Checkout ---
     - name: git-checkout
