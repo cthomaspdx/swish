@@ -99,9 +99,9 @@ spec:
                 - name: image
                   value: cthomaspdx1/swish-r:latest
 
-          # ArgoCD sync: trigger after all scans pass
-          - name: argocd-sync
-            template: argocd-sync
+          # Trigger ArgoCD refresh via Argo Events webhook
+          - name: trigger-deploy
+            template: trigger-deploy
             dependencies:
               - scan-python3
               - scan-python2
@@ -170,14 +170,17 @@ spec:
           - table
           - "{{inputs.parameters.image}}"
 
-    # --- ArgoCD Sync ---
-    - name: argocd-sync
-      serviceAccountName: argo-deployer
+    # --- Trigger Deploy via Argo Events webhook ---
+    - name: trigger-deploy
       container:
-        image: quay.io/argoproj/argocd:v2.13.4
-        command: [sh, -c]
+        image: curlimages/curl:latest
+        command: [curl]
         args:
-          - |
-            argocd login argocd-server.argocd.svc.cluster.local --core &&
-            argocd app sync swish --force &&
-            argocd app wait swish --timeout 300
+          - -sf
+          - -X
+          - POST
+          - -H
+          - "Content-Type: application/json"
+          - -d
+          - "{}"
+          - "http://webhook-eventsource-svc.argo-events.svc.cluster.local:12000/deploy"

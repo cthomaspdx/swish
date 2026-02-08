@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: argocd-sync
+  namespace: argo-events
+spec:
+  serviceAccountName: argo-events-sensor
+  eventBusName: default
+  dependencies:
+    - name: deploy-webhook
+      eventSourceName: webhook
+      eventName: deploy
+  triggers:
+    - template:
+        name: argocd-refresh
+        k8s:
+          operation: patch
+          patchStrategy: merge
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: swish
+                namespace: argocd
+                annotations:
+                  argocd.argoproj.io/refresh: "hard"
+          group: argoproj.io
+          version: v1alpha1
+          resource: applications
