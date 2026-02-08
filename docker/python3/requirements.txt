@@ -3,4 +3,3 @@ pandas
 scipy
 requests
 flask
-pyspark
