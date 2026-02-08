@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argo-deployer
+  namespace: argo
+---
+# ClusterRole: access ArgoCD Applications (in argocd namespace)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-deployer
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    verbs: [get, list, watch, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-deployer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-deployer
+subjects:
+  - kind: ServiceAccount
+    name: argo-deployer
+    namespace: argo
+---
+# Role: read ArgoCD config in argocd namespace (needed for --core mode)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-deployer-argocd-config
+  namespace: argocd
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, secrets]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-deployer-argocd-config
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-deployer-argocd-config
+subjects:
+  - kind: ServiceAccount
+    name: argo-deployer
+    namespace: argo
