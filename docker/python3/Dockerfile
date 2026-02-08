@@ -10,6 +10,6 @@ RUN apt-get update && \
 # Copy and install Python dependencies (pre-built wheels only)
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir --only-binary=:all: -r requirements.txt
+    pip install --no-cache-dir --only-binary=numpy,pandas,scipy -r requirements.txt
 
 CMD ["python3"]
