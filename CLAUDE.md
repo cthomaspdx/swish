@@ -23,14 +23,21 @@ Swish is a DevSecOps project implementing a Kubernetes-based platform that allow
 
 ## Repository Structure
 
-This is a greenfield repo. Expected layout as implementation progresses:
-
 ```
-docker/              # Dockerfiles and requirements files
-k8s/                 # Kubernetes manifests (deployments, services, HPA, VPA)
-.github/workflows/   # CI/CD pipelines
-monitoring/          # Prometheus/Grafana configs, alerting rules
-docs/                # CVE reports, architecture decisions, build time analysis
+argo/
+  argocd/              # ArgoCD Application manifests (per-image + spark)
+  events/              # Argo Events webhook eventsource + sensor
+  workflows/           # Argo Workflows CI pipeline + RBAC
+docker/                # Dockerfiles and requirements files
+docs/                  # CVE remediation reports
+helm/
+  dev-env/             # Helm chart for per-user dev environments
+k8s/
+  python2/             # Python 2 deployment + service
+  python3/             # Python 3 deployment + service
+  r/                   # R deployment + service
+monitoring/            # Prometheus alert rules + Grafana dashboard
+spark/                 # Spark Operator RBAC, sample data, PySpark ETL job
 ```
 
 ## Key Commands (to be established)

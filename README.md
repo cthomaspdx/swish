@@ -2,6 +2,25 @@
 
 DevSecOps platform for dynamically launching custom development environments on Kubernetes.
 
+## Repository Structure
+
+```
+argo/
+  argocd/              # ArgoCD Application manifests (per-image + spark)
+  events/              # Argo Events webhook eventsource + sensor
+  workflows/           # Argo Workflows CI pipeline + RBAC
+docker/                # Dockerfiles and requirements files
+docs/                  # CVE remediation reports
+helm/
+  dev-env/             # Helm chart for per-user dev environments
+k8s/
+  python2/             # Python 2 deployment + service
+  python3/             # Python 3 deployment + service
+  r/                   # R deployment + service
+monitoring/            # Prometheus alert rules + Grafana dashboard
+spark/                 # Spark Operator RBAC, sample data, PySpark ETL job
+```
+
 ## Cluster Prerequisites
 
 The following components must be installed in the Minikube cluster before deploying Swish.
@@ -209,6 +228,14 @@ The driver logs show three result tables:
 After all prerequisites are installed:
 
 ```bash
+# Create Docker Hub credentials secret (needed for CI to push images)
+# Edit argo/workflows/dockerhub-credentials.yaml with your Docker Hub username and PAT, then:
+kubectl apply -f argo/workflows/dockerhub-credentials.yaml
+
+# Create git credentials secret (needed for CI to push CVE reports back to repo)
+# Edit argo/workflows/gitcreds.yaml with your GitHub username and PAT, then:
+kubectl apply -f argo/workflows/gitcreds.yaml
+
 # Apply Argo Events manifests (webhook + sensor + RBAC)
 kubectl apply -f argo/events/
 
