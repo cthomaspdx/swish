@@ -48,6 +48,13 @@ kubectl create namespace argo
 kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v4.0.0/quick-start-minimal.yaml
 ```
 
+Access the Argo Workflows UI:
+
+```bash
+kubectl port-forward svc/argo-server -n argo 2746:2746
+# https://localhost:2746
+```
+
 ### ArgoCD
 
 GitOps continuous delivery — syncs Kubernetes manifests from the repo.
@@ -58,6 +65,13 @@ GitOps continuous delivery — syncs Kubernetes manifests from the repo.
 ```bash
 kubectl create namespace argocd
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.3.0/manifests/install.yaml
+```
+
+Access the ArgoCD UI:
+
+```bash
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+# https://localhost:8080 (admin / <password from: kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' | base64 -d>)
 ```
 
 ### Argo Events
