@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sample-data
+  namespace: swish
+data:
+  nfl_stats.csv: |
+    player,team,position,games,passing_yards,rushing_yards,receiving_yards,touchdowns,season
+    Patrick Mahomes,KC,QB,17,5250,358,0,45,2024
+    Josh Allen,BUF,QB,17,4850,524,0,42,2024
+    Lamar Jackson,BAL,QB,16,3800,821,0,37,2024
+    Joe Burrow,CIN,QB,17,4600,157,0,35,2024
+    Jalen Hurts,PHI,QB,17,3900,605,0,33,2024
+    Derrick Henry,BAL,RB,17,0,1750,245,16,2024
+    Saquon Barkley,PHI,RB,17,0,1620,340,14,2024
+    Josh Jacobs,GB,RB,17,0,1380,380,12,2024
+    Breece Hall,NYJ,RB,17,0,1150,490,10,2024
+    Jonathan Taylor,IND,RB,16,0,1280,320,11,2024
+    Tyreek Hill,MIA,WR,17,0,42,1710,13,2024
+    CeeDee Lamb,DAL,WR,17,0,28,1620,12,2024
+    Ja'Marr Chase,CIN,WR,17,0,35,1540,14,2024
+    Amon-Ra St. Brown,DET,WR,17,0,18,1480,11,2024
+    A.J. Brown,PHI,WR,16,0,22,1350,10,2024
+    Davante Adams,LV,WR,17,0,15,1290,9,2024
+    Justin Jefferson,MIN,WR,17,0,30,1450,10,2024
+    Travis Kelce,KC,TE,17,0,12,1080,8,2024
+    Sam LaPorta,DET,TE,17,0,18,920,7,2024
+    T.J. Hockenson,MIN,TE,15,0,8,780,6,2024
+    Isiah Pacheco,KC,RB,14,0,980,210,7,2024
+    De'Von Achane,MIA,RB,16,0,1120,480,11,2024
+    Bijan Robinson,ATL,RB,17,0,1560,420,13,2024
+    Jahmyr Gibbs,DET,RB,17,0,1290,510,12,2024
+    Puka Nacua,LAR,WR,17,0,20,1380,9,2024
+    Garrett Wilson,NYJ,WR,17,0,25,1210,8,2024
+    Chris Olave,NO,WR,15,0,10,1100,7,2024
+    Mike Evans,TB,WR,16,0,8,1260,9,2024
+    George Kittle,SF,TE,16,0,15,890,7,2024
+    Mark Andrews,BAL,TE,14,0,10,750,6,2024

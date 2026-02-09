@@ -92,6 +92,118 @@ kubectl port-forward svc/prometheus-grafana -n monitoring 3000:80
 kubectl port-forward svc/prometheus-kube-prometheus-prometheus -n monitoring 9090:9090
 ```
 
+### Spark Operator
+
+Runs Apache Spark workloads (PySpark, Scala, R) natively on Kubernetes.
+
+- **Chart version used:** latest (kubeflow/spark-operator)
+- **Install:** https://github.com/kubeflow/spark-operator
+
+```bash
+helm repo add spark-operator https://kubeflow.github.io/spark-operator
+helm repo update
+
+helm install spark-operator spark-operator/spark-operator \
+  --namespace spark-operator --create-namespace \
+  --set spark.jobNamespaces="{swish}" \
+  --wait
+```
+
+## Spark: PySpark ETL Job
+
+A sample PySpark ETL job is included under `spark/` to demonstrate distributed data processing on the platform. The job reads an NFL player stats CSV dataset, computes per-player total yards, and produces team and position aggregates.
+
+### Manifests
+
+| File | Purpose |
+|------|---------|
+| `spark/rbac.yaml` | ServiceAccount, Role, and RoleBinding for the Spark driver |
+| `spark/sample-data-cm.yaml` | ConfigMap with sample NFL stats CSV (~30 rows) |
+| `spark/pyspark-etl.yaml` | PySpark script ConfigMap + SparkApplication CR |
+| `argo/argocd/swish-spark.yaml` | ArgoCD Application — auto-syncs the `spark/` directory |
+
+### Running the Job
+
+ArgoCD will auto-sync the manifests. To run manually:
+
+```bash
+kubectl apply -f spark/rbac.yaml
+kubectl apply -f spark/sample-data-cm.yaml
+kubectl apply -f spark/pyspark-etl.yaml
+
+# Watch job status
+kubectl get sparkapplication -n swish
+
+# View results
+kubectl logs pyspark-etl-driver -n swish | grep -A 20 "^==="
+
+# Clean up
+kubectl delete sparkapplication pyspark-etl -n swish
+```
+
+### Sample Output
+
+The driver logs show three result tables:
+
+**Top 10 Players by Total Yards**
+
+```
++---------------+----+--------+-----------+----------+
+|player         |team|position|total_yards|touchdowns|
++---------------+----+--------+-----------+----------+
+|Patrick Mahomes|KC  |QB      |5608       |45        |
+|Josh Allen     |BUF |QB      |5374       |42        |
+|Joe Burrow     |CIN |QB      |4757       |35        |
+|Lamar Jackson  |BAL |QB      |4621       |37        |
+|Jalen Hurts    |PHI |QB      |4505       |33        |
+|Derrick Henry  |BAL |RB      |1995       |16        |
+|Bijan Robinson |ATL |RB      |1980       |13        |
+|Saquon Barkley |PHI |RB      |1960       |14        |
+|Jahmyr Gibbs   |DET |RB      |1800       |12        |
+|Josh Jacobs    |GB  |RB      |1760       |12        |
++---------------+----+--------+-----------+----------+
+```
+
+**Team Aggregates**
+
+```
++----+---------+-----------+------------+
+|team|total_tds|total_yards|player_count|
++----+---------+-----------+------------+
+|KC  |60       |7890       |3           |
+|BAL |59       |7376       |3           |
+|PHI |57       |7837       |3           |
+|CIN |49       |6332       |2           |
+|BUF |42       |5374       |1           |
+|DET |30       |4236       |3           |
+|MIA |24       |3352       |2           |
+|NYJ |18       |2875       |2           |
+|MIN |16       |2268       |2           |
+|ATL |13       |1980       |1           |
+|GB  |12       |1760       |1           |
+|DAL |12       |1648       |1           |
+|IND |11       |1600       |1           |
+|TB  |9        |1268       |1           |
+|LAR |9        |1400       |1           |
+|LV  |9        |1305       |1           |
+|SF  |7        |905        |1           |
+|NO  |7        |1110       |1           |
++----+---------+-----------+------------+
+```
+
+**Position Averages**
+
+```
++--------+-------+---------------+------------+
+|position|avg_tds|avg_total_yards|player_count|
++--------+-------+---------------+------------+
+|QB      |38.4   |4973.0         |5           |
+|RB      |11.8   |1725.0         |9           |
+|WR      |10.2   |1422.1         |11          |
+|TE      |6.8    |896.6          |5           |
++--------+-------+---------------+------------+
+```
+
 ## Deploying Swish
 
 After all prerequisites are installed:

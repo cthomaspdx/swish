@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pyspark-scripts
+  namespace: swish
+data:
+  etl.py: |
+    from pyspark.sql import SparkSession
+    from pyspark.sql import functions as F
+    from pyspark.sql.window import Window
+
+    spark = SparkSession.builder.appName("NFL Stats ETL").getOrCreate()
+
+    df = spark.read.csv("/data/nfl_stats.csv", header=True, inferSchema=True)
+
+    # Compute total yards per player
+    df = df.withColumn(
+        "total_yards",
+        F.col("passing_yards") + F.col("rushing_yards") + F.col("receiving_yards"),
+    )
+
+    print("\n" + "=" * 70)
+    print("TOP 10 PLAYERS BY TOTAL YARDS")
+    print("=" * 70)
+    top_players = df.orderBy(F.desc("total_yards")).limit(10)
+    top_players.select(
+        "player", "team", "position", "total_yards", "touchdowns"
+    ).show(truncate=False)
+
+    print("=" * 70)
+    print("TEAM AGGREGATES")
+    print("=" * 70)
+    team_agg = (
+        df.groupBy("team")
+        .agg(
+            F.sum("touchdowns").alias("total_tds"),
+            F.sum("total_yards").alias("total_yards"),
+            F.count("player").alias("player_count"),
+        )
+        .orderBy(F.desc("total_tds"))
+    )
+    team_agg.show(truncate=False)
+
+    print("=" * 70)
+    print("POSITION AVERAGES")
+    print("=" * 70)
+    pos_agg = (
+        df.groupBy("position")
+        .agg(
+            F.round(F.avg("touchdowns"), 1).alias("avg_tds"),
+            F.round(F.avg("total_yards"), 1).alias("avg_total_yards"),
+            F.count("player").alias("player_count"),
+        )
+        .orderBy(F.desc("avg_total_yards"))
+    )
+    pos_agg.show(truncate=False)
+
+    spark.stop()
+---
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: pyspark-etl
+  namespace: swish
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: apache/spark:3.5.0
+  mainApplicationFile: local:///scripts/etl.py
+  sparkVersion: "3.5.0"
+  restartPolicy:
+    type: Never
+  driver:
+    cores: 1
+    memory: 512m
+    serviceAccount: spark-driver
+    volumeMounts:
+      - name: data
+        mountPath: /data
+      - name: scripts
+        mountPath: /scripts
+  executor:
+    cores: 1
+    instances: 1
+    memory: 512m
+    volumeMounts:
+      - name: data
+        mountPath: /data
+  volumes:
+    - name: data
+      configMap:
+        name: sample-data
+    - name: scripts
+      configMap:
+        name: pyspark-scripts
