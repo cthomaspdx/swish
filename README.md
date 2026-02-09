@@ -292,3 +292,95 @@ kubectl get pods -n swish -l app.kubernetes.io/instance=my-env
 # Tear down
 helm uninstall my-env -n swish
 ```
+
+## Integrating with a Repo Template
+
+Teams can use a GitHub Actions workflow in their own repositories to automatically build a custom container image and deploy it as a dev environment on the Swish platform. The idea is to create a repo template that any team can fork — they add their Dockerfile and a `values.yaml` override, push to `main`, and the workflow handles the rest.
+
+### What the workflow does
+
+1. Builds the team's custom Docker image and pushes it to Docker Hub
+2. Installs the Swish Helm chart from this repo, pointing at the freshly built image
+3. Deploys (or upgrades) a dev environment into the `swish` namespace on the cluster
+
+### Example GitHub Actions workflow
+
+Add this as `.github/workflows/deploy-dev-env.yaml` in the team's repo:
+
+```yaml
+name: Deploy Dev Environment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      memory:
+        description: "Memory request (e.g. 1Gi, 4Gi)"
+        default: "1Gi"
+      cpu:
+        description: "CPU request (e.g. 500m, 2)"
+        default: "500m"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}
+
+      - name: Set up kubeconfig
+        run: echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+
+      - name: Deploy dev environment
+        run: |
+          helm upgrade --install ${{ github.event.repository.name }} \
+            oci://ghcr.io/cthomaspdx/swish/charts/dev-env \
+            --namespace swish --create-namespace \
+            --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }} \
+            --set image.tag=${{ github.sha }} \
+            --set resources.requests.memory=${{ github.event.inputs.memory || '1Gi' }} \
+            --set resources.requests.cpu=${{ github.event.inputs.cpu || '500m' }} \
+            --set team=${{ github.repository_owner }} \
+            --set project=${{ github.event.repository.name }}
+```
+
+### Repo template structure
+
+The team's repo would look like:
+
+```
+Dockerfile                           # Custom image (based on a swish base or from scratch)
+requirements.txt                     # Language-specific dependencies
+.github/workflows/deploy-dev-env.yaml  # Workflow above
+```
+
+### Required GitHub secrets
+
+| Secret | Description |
+|--------|-------------|
+| `DOCKERHUB_USERNAME` | Docker Hub username for pushing images |
+| `DOCKERHUB_TOKEN` | Docker Hub access token |
+| `KUBECONFIG` | Base64-encoded kubeconfig with access to the cluster's `swish` namespace |
+
+### Customization
+
+Teams can extend the workflow to fit their needs:
+
+- **Add Trivy scanning** before deploy by adding a scan step between build and deploy
+- **Pin specific base images** by using `FROM cthomaspdx1/swish-python3:latest` in their Dockerfile to inherit pre-installed tooling
+- **Enable SSH access** by adding `--set ssh.enabled=true` to the Helm install
+- **Request GPU resources** by adding `--set gpu.enabled=true --set gpu.count=1`
+- **Install extra packages at startup** with `--set "customPackages.pip={pandas,scikit-learn}"`
