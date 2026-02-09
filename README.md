@@ -54,6 +54,44 @@ kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-events/stable/m
 kubectl apply -n argo-events -f https://raw.githubusercontent.com/argoproj/argo-events/stable/examples/eventbus/native.yaml
 ```
 
+### Prometheus & Grafana (kube-prometheus-stack)
+
+Cluster monitoring, alerting rules, and dashboards for dev environments.
+
+- **Chart version used:** 81.5.0
+- **Install:** https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+helm install prometheus prometheus-community/kube-prometheus-stack \
+  --namespace monitoring --create-namespace \
+  --set grafana.adminPassword=swish \
+  --set grafana.sidecar.dashboards.enabled=true \
+  --set grafana.sidecar.dashboards.searchNamespace=ALL \
+  --set prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues=false \
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+  --wait
+```
+
+Apply Swish alert rules and Grafana dashboard:
+
+```bash
+kubectl apply -f monitoring/prometheus-rules.yaml -n monitoring
+kubectl apply -f monitoring/grafana-dashboard-cm.yaml -n monitoring
+```
+
+Access the UIs via port-forward:
+
+```bash
+# Grafana (admin / swish)
+kubectl port-forward svc/prometheus-grafana -n monitoring 3000:80
+
+# Prometheus
+kubectl port-forward svc/prometheus-kube-prometheus-prometheus -n monitoring 9090:9090
+```
+
 ## Deploying Swish
 
 After all prerequisites are installed:
@@ -67,4 +105,24 @@ kubectl apply -f argo/workflows/argo-deployer-rbac.yaml
 
 # Submit a CI build
 argo submit argo/workflows/ci.yaml -p target=all
+```
+
+## Launching a Dev Environment
+
+Use the Helm chart to spin up a per-user dev environment:
+
+```bash
+# Launch a Python 3 environment with custom packages
+helm install my-env ./helm/dev-env \
+  --namespace swish \
+  --set image.repository=cthomaspdx1/swish-python3 \
+  --set "customPackages.pip={flask,requests}" \
+  --set resources.requests.memory=1Gi \
+  --set team=data-science
+
+# Check pod status
+kubectl get pods -n swish -l app.kubernetes.io/instance=my-env
+
+# Tear down
+helm uninstall my-env -n swish
 ```

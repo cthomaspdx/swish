@@ -1,0 +1,57 @@
+## Base image selection
+image:
+  repository: cthomaspdx1/swish-python3
+  tag: latest
+  pullPolicy: IfNotPresent
+
+## Resource requests and limits
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+## GPU support
+gpu:
+  enabled: false
+  count: 1
+
+## Custom packages installed at pod startup
+customPackages:
+  pip: []
+  apt: []
+
+## Service configuration
+service:
+  type: ClusterIP
+  port: 8080
+
+## SSH sidecar
+ssh:
+  enabled: false
+  port: 22
+  image: lscr.io/linuxserver/openssh-server:latest
+
+## Team and project labels for segregation and monitoring
+team: ""
+project: ""
+
+## Horizontal Pod Autoscaler (custom metric via prometheus-adapter)
+hpa:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  requestsPerSecondTarget: 10
+
+## Vertical Pod Autoscaler
+vpa:
+  enabled: false
+  updateMode: "Auto"
+  minAllowed:
+    cpu: 50m
+    memory: 64Mi
+  maxAllowed:
+    cpu: "2"
+    memory: 8Gi

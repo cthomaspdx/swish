@@ -1,14 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: swish
+  name: swish-dev-env
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/cthomaspdx/swish.git
     targetRevision: main
-    path: k8s
+    path: helm/dev-env
+    helm:
+      valueFiles:
+        - values.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: swish

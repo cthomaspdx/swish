@@ -1,0 +1,65 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: swish-dev-env-alerts
+  labels:
+    release: prometheus
+spec:
+  groups:
+    - name: dev-env-resource-efficiency
+      rules:
+        - alert: DevEnvCPUOverProvisioned
+          expr: |
+            (
+              kube_pod_container_resource_requests{container="dev", resource="cpu"}
+              - on(pod, namespace) rate(container_cpu_usage_seconds_total{container="dev"}[5m])
+            )
+            / kube_pod_container_resource_requests{container="dev", resource="cpu"}
+            > 0.8
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Dev environment {{ $labels.pod }} CPU over-provisioned"
+            description: "Requested CPU exceeds usage by >80% for 30 minutes. Consider reducing CPU requests or enabling VPA."
+
+        - alert: DevEnvMemoryOverProvisioned
+          expr: |
+            (
+              kube_pod_container_resource_requests{container="dev", resource="memory"}
+              - on(pod, namespace) container_memory_working_set_bytes{container="dev"}
+            )
+            / kube_pod_container_resource_requests{container="dev", resource="memory"}
+            > 0.8
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Dev environment {{ $labels.pod }} memory over-provisioned"
+            description: "Requested memory exceeds usage by >80% for 30 minutes. Consider reducing memory requests or enabling VPA."
+
+    - name: dev-env-idle-detection
+      rules:
+        - alert: DevEnvIdle
+          expr: |
+            rate(container_cpu_usage_seconds_total{container="dev"}[5m]) < 0.05
+          for: 30m
+          labels:
+            severity: info
+          annotations:
+            summary: "Dev environment {{ $labels.pod }} appears idle"
+            description: "CPU usage below 5% for 30 minutes. Environment may be unused and eligible for teardown."
+
+    - name: dev-env-high-memory
+      rules:
+        - alert: DevEnvHighMemory
+          expr: |
+            container_memory_working_set_bytes{container="dev"}
+            / on(pod, namespace) kube_pod_container_resource_limits{container="dev", resource="memory"}
+            > 0.85
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Dev environment {{ $labels.pod }} memory usage critical"
+            description: "Memory usage exceeds 85% of limit for 5 minutes. Risk of OOMKill."

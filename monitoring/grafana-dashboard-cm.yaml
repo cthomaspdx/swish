@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: swish-dev-env-dashboard
+  labels:
+    grafana_dashboard: "1"
+data:
+  swish-dev-env.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "title": "CPU Usage vs Requests",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "rate(container_cpu_usage_seconds_total{container=\"dev\"}[5m])",
+              "legendFormat": "{{ pod }} usage"
+            },
+            {
+              "expr": "kube_pod_container_resource_requests{container=\"dev\", resource=\"cpu\"}",
+              "legendFormat": "{{ pod }} request"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": { "drawStyle": "line", "fillOpacity": 10 }
+            }
+          }
+        },
+        {
+          "title": "Memory Usage vs Requests",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "container_memory_working_set_bytes{container=\"dev\"}",
+              "legendFormat": "{{ pod }} usage"
+            },
+            {
+              "expr": "kube_pod_container_resource_requests{container=\"dev\", resource=\"memory\"}",
+              "legendFormat": "{{ pod }} request"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": { "drawStyle": "line", "fillOpacity": 10 }
+            }
+          }
+        },
+        {
+          "title": "Idle Environments (< 5% CPU for 30m)",
+          "type": "table",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "rate(container_cpu_usage_seconds_total{container=\"dev\"}[30m]) < 0.05",
+              "format": "table",
+              "instant": true
+            }
+          ],
+          "transformations": [
+            { "id": "organize", "options": { "includeByName": { "pod": true, "namespace": true, "Value": true } } }
+          ]
+        },
+        {
+          "title": "Resource Usage by Team",
+          "type": "barchart",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "sum by (label_swish_io_team) (rate(container_cpu_usage_seconds_total{container=\"dev\"}[5m]))",
+              "legendFormat": "{{ label_swish_io_team }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short" }
+          }
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["swish", "dev-env"],
+      "templating": { "list": [] },
+      "time": { "from": "now-6h", "to": "now" },
+      "title": "Swish Dev Environments",
+      "uid": "swish-dev-env"
+    }

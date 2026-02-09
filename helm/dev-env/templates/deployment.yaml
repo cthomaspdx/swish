@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dev-env.fullname" . }}
+  labels:
+    {{- include "dev-env.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "dev-env.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "dev-env.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: dev
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              {{- if .Values.customPackages.apt }}
+              apt-get update -qq && apt-get install -y -qq {{ join " " .Values.customPackages.apt }}
+              {{- end }}
+              {{- if .Values.customPackages.pip }}
+              pip install --quiet {{ join " " .Values.customPackages.pip }}
+              {{- end }}
+              echo "Dev environment ready"
+              tail -f /dev/null
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+              {{- if .Values.gpu.enabled }}
+              nvidia.com/gpu: {{ .Values.gpu.count }}
+              {{- end }}
+        {{- if .Values.ssh.enabled }}
+        - name: ssh
+          image: {{ .Values.ssh.image }}
+          ports:
+            - name: ssh
+              containerPort: 2222
+              protocol: TCP
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: PASSWORD_ACCESS
+              value: "true"
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+        {{- end }}
+      {{- if .Values.ssh.enabled }}
+      volumes:
+        - name: workspace
+          emptyDir: {}
+      {{- end }}

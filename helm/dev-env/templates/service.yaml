@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dev-env.fullname" . }}
+  labels:
+    {{- include "dev-env.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+    {{- if .Values.ssh.enabled }}
+    - name: ssh
+      port: {{ .Values.ssh.port }}
+      targetPort: 2222
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "dev-env.selectorLabels" . | nindent 4 }}
