@@ -2,6 +2,19 @@
 
 DevSecOps platform for dynamically launching custom development environments on Kubernetes.
 
+## Development Approach
+
+This project was designed and architected hands-on, with every technology choice, architecture decision, and integration pattern driven by real platform engineering requirements. [Claude Code](https://claude.ai/code) was used as an accelerator to implement and iterate faster — translating design decisions into code, troubleshooting cluster issues in real time, and tightening the feedback loop between writing manifests and validating them against a live Minikube cluster.
+
+The platform covers the full DevSecOps stack:
+- **Container strategy** — Multi-stage Docker builds balancing image size, build time, and multi-language support (Python 2, Python 3, R)
+- **CI/CD pipeline design** — Argo Workflows DAG with per-target build, scan, report, and deploy stages
+- **GitOps delivery** — ArgoCD with Argo Events webhooks for event-driven sync, eliminating manual deploys
+- **Security posture** — Trivy CVE scanning integrated into CI with automated remediation reports committed back to the repo
+- **Observability** — Prometheus alerting rules and Grafana dashboards purpose-built for dev environment resource tracking
+- **Helm-based provisioning** — Templated per-user environments with configurable images, packages, resource requests, and team segregation
+- **Distributed compute** — Spark Operator with a PySpark ETL job demonstrating Kubernetes-native data processing
+
 ## Repository Structure
 
 ```
