@@ -56,6 +56,8 @@ spec:
               parameters:
                 - name: image
                   value: cthomaspdx1/swish-python3:latest
+                - name: target
+                  value: python3
 
           # Python 2: build → scan
           - name: build-python2
@@ -77,6 +79,8 @@ spec:
               parameters:
                 - name: image
                   value: cthomaspdx1/swish-python2:latest
+                - name: target
+                  value: python2
 
           # R: build → scan
           - name: build-r
@@ -98,14 +102,75 @@ spec:
               parameters:
                 - name: image
                   value: cthomaspdx1/swish-r:latest
+                - name: target
+                  value: r
 
-          # Trigger ArgoCD refresh via Argo Events webhook
-          - name: trigger-deploy
+          # Generate CVE remediation reports
+          - name: generate-report-python3
+            template: generate-report
+            dependencies: [scan-python3]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'python3'"
+            arguments:
+              parameters:
+                - name: target
+                  value: python3
+                - name: image
+                  value: cthomaspdx1/swish-python3:latest
+
+          - name: generate-report-python2
+            template: generate-report
+            dependencies: [scan-python2]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'python2'"
+            arguments:
+              parameters:
+                - name: target
+                  value: python2
+                - name: image
+                  value: cthomaspdx1/swish-python2:latest
+
+          - name: generate-report-r
+            template: generate-report
+            dependencies: [scan-r]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'r'"
+            arguments:
+              parameters:
+                - name: target
+                  value: r
+                - name: image
+                  value: cthomaspdx1/swish-r:latest
+
+          # Commit all reports back to repo
+          - name: commit-reports
+            template: commit-reports
+            dependencies: [generate-report-python3, generate-report-python2, generate-report-r]
+
+          # Trigger ArgoCD refresh via Argo Events webhook (per target)
+          - name: trigger-deploy-python3
             template: trigger-deploy
-            dependencies:
-              - scan-python3
-              - scan-python2
-              - scan-r
+            dependencies: [scan-python3]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'python3'"
+            arguments:
+              parameters:
+                - name: target
+                  value: python3
+
+          - name: trigger-deploy-python2
+            template: trigger-deploy
+            dependencies: [scan-python2]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'python2'"
+            arguments:
+              parameters:
+                - name: target
+                  value: python2
+
+          - name: trigger-deploy-r
+            template: trigger-deploy
+            dependencies: [scan-r]
+            when: "'{{workflow.parameters.target}}' == 'all' || '{{workflow.parameters.target}}' == 'r'"
+            arguments:
+              parameters:
+                - name: target
+                  value: r
 
     # --- Git Checkout ---
     - name: git-checkout
@@ -157,21 +222,150 @@ spec:
       inputs:
         parameters:
           - name: image
+          - name: target
       container:
         image: aquasec/trivy:latest
-        command: [trivy]
+        command: [sh, -c]
         args:
-          - image
-          - --severity
-          - CRITICAL,HIGH
-          - --exit-code
-          - "0"
-          - --format
-          - table
-          - "{{inputs.parameters.image}}"
+          - |
+            mkdir -p /workspace/reports
+            trivy image --severity CRITICAL,HIGH --exit-code 0 --format json --output /workspace/reports/{{inputs.parameters.target}}.json "{{inputs.parameters.image}}"
+            trivy image --severity CRITICAL,HIGH --exit-code 0 --format table "{{inputs.parameters.image}}"
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+
+    # --- Generate CVE Remediation Report ---
+    - name: generate-report
+      inputs:
+        parameters:
+          - name: target
+          - name: image
+      container:
+        image: python:3-alpine
+        command: [python3, -c]
+        args:
+          - |
+            import json, datetime, os
+
+            target = "{{inputs.parameters.target}}"
+            image = "{{inputs.parameters.image}}"
+            json_path = f"/workspace/reports/{target}.json"
+            docs_dir = "/workspace/src/docs"
+            os.makedirs(docs_dir, exist_ok=True)
+            md_path = f"{docs_dir}/{target}-cve-remediation.md"
+
+            with open(json_path) as f:
+                data = json.load(f)
+
+            vulns = []
+            for result in data.get("Results", []):
+                for v in result.get("Vulnerabilities", []):
+                    vulns.append({
+                        "id": v.get("VulnerabilityID", ""),
+                        "pkg": v.get("PkgName", ""),
+                        "installed": v.get("InstalledVersion", ""),
+                        "fixed": v.get("FixedVersion", ""),
+                        "severity": v.get("Severity", ""),
+                        "title": v.get("Title", ""),
+                    })
+
+            scan_date = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+            lines = [f"# CVE Remediation Report: {target}", ""]
+            lines.append(f"**Image:** `{image}`  ")
+            lines.append(f"**Scan Date:** {scan_date}  ")
+            lines.append(f"**Scanner:** Trivy")
+            lines.append("")
+
+            if not vulns:
+                lines.append("No CRITICAL or HIGH vulnerabilities found.")
+            else:
+                critical = [v for v in vulns if v["severity"] == "CRITICAL"]
+                high = [v for v in vulns if v["severity"] == "HIGH"]
+                has_fix = [v for v in vulns if v["fixed"]]
+
+                lines.append("## Summary")
+                lines.append("")
+                lines.append("| Severity | Count |")
+                lines.append("|----------|-------|")
+                lines.append(f"| CRITICAL | {len(critical)} |")
+                lines.append(f"| HIGH | {len(high)} |")
+                lines.append(f"| **Total** | **{len(vulns)}** |")
+                lines.append(f"| With fix available | {len(has_fix)} |")
+                lines.append("")
+
+                for sev, sev_vulns in [("CRITICAL", critical), ("HIGH", high)]:
+                    if not sev_vulns:
+                        continue
+                    lines.append(f"## {sev} Vulnerabilities")
+                    lines.append("")
+                    lines.append("| CVE ID | Package | Installed | Fixed | Title |")
+                    lines.append("|--------|---------|-----------|-------|-------|")
+                    for v in sev_vulns:
+                        fixed = v["fixed"] if v["fixed"] else "—"
+                        title = v["title"][:80] if v["title"] else "—"
+                        lines.append(f"| {v['id']} | {v['pkg']} | {v['installed']} | {fixed} | {title} |")
+                    lines.append("")
+
+                if has_fix:
+                    lines.append("## Remediation Plan")
+                    lines.append("")
+                    lines.append("Packages with available fixes — upgrade to the listed version:")
+                    lines.append("")
+                    seen = set()
+                    for v in sorted(has_fix, key=lambda x: x["pkg"]):
+                        key = (v["pkg"], v["fixed"])
+                        if key not in seen:
+                            seen.add(key)
+                            lines.append(f"- `{v['pkg']}`: upgrade from `{v['installed']}` to `{v['fixed']}`")
+                    lines.append("")
+
+            with open(md_path, "w") as f:
+                f.write("\n".join(lines) + "\n")
+
+            print(f"Report written to {md_path}")
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      outputs:
+        artifacts:
+          - name: report
+            path: /workspace/src/docs/{{inputs.parameters.target}}-cve-remediation.md
+            archive:
+              none: {}
+
+    # --- Commit Reports to Repo ---
+    - name: commit-reports
+      container:
+        image: alpine/git:latest
+        command: [sh, -c]
+        args:
+          - |
+            cd /workspace/src
+            git config user.email "ci@swish.local"
+            git config user.name "Swish CI"
+            git add docs/*-cve-remediation.md
+            if git diff --cached --quiet; then
+              echo "No report changes to commit."
+              exit 0
+            fi
+            GIT_USER=$(cat /git-secret/username)
+            GIT_PASS=$(cat /git-secret/password)
+            git remote set-url origin https://${GIT_USER}:${GIT_PASS}@github.com/cthomaspdx/swish.git
+            git commit -m "docs: update CVE remediation reports [skip ci]"
+            git push origin HEAD:main
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+          - name: git-secret
+            mountPath: /git-secret
+            readOnly: true
 
     # --- Trigger Deploy via Argo Events webhook ---
     - name: trigger-deploy
+      inputs:
+        parameters:
+          - name: target
       container:
         image: curlimages/curl:latest
         command: [curl]
@@ -183,4 +377,4 @@ spec:
           - "Content-Type: application/json"
           - -d
           - "{}"
-          - "http://webhook-eventsource-svc.argo-events.svc.cluster.local:12000/deploy"
+          - "http://webhook-eventsource-svc.argo-events.svc.cluster.local:12000/deploy/{{inputs.parameters.target}}"

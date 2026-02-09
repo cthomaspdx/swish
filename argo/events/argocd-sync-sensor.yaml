@@ -7,12 +7,19 @@ spec:
   serviceAccountName: argo-events-sensor
   eventBusName: default
   dependencies:
-    - name: deploy-webhook
+    - name: deploy-python2
       eventSourceName: webhook
-      eventName: deploy
+      eventName: deploy-python2
+    - name: deploy-python3
+      eventSourceName: webhook
+      eventName: deploy-python3
+    - name: deploy-r
+      eventSourceName: webhook
+      eventName: deploy-r
   triggers:
     - template:
-        name: argocd-refresh
+        name: refresh-python2
+        conditions: deploy-python2
         k8s:
           operation: patch
           patchStrategy: merge
@@ -21,7 +28,43 @@ spec:
               apiVersion: argoproj.io/v1alpha1
               kind: Application
               metadata:
-                name: swish
+                name: swish-python2
+                namespace: argocd
+                annotations:
+                  argocd.argoproj.io/refresh: "hard"
+          group: argoproj.io
+          version: v1alpha1
+          resource: applications
+    - template:
+        name: refresh-python3
+        conditions: deploy-python3
+        k8s:
+          operation: patch
+          patchStrategy: merge
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: swish-python3
+                namespace: argocd
+                annotations:
+                  argocd.argoproj.io/refresh: "hard"
+          group: argoproj.io
+          version: v1alpha1
+          resource: applications
+    - template:
+        name: refresh-r
+        conditions: deploy-r
+        k8s:
+          operation: patch
+          patchStrategy: merge
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: swish-r
                 namespace: argocd
                 annotations:
                   argocd.argoproj.io/refresh: "hard"

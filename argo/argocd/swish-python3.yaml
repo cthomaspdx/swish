@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: swish-python3
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/cthomaspdx/swish.git
+    targetRevision: main
+    path: k8s/python3
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: swish
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
